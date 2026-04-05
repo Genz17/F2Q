@@ -42,11 +42,9 @@ class NonStationaryCombinatorialBandit:
         根据局部优化的结果更新被选中量子比特的分数。
         使用 EMA (指数移动平均) 实现自然遗忘：Q = (1 - alpha) * Q + alpha * Reward
         """
+
         for q in selected_qubits:
-            self.q_values[q] = (1 - self.alpha) * self.q_values[q] + self.alpha * reward
-        for q in selected_qubits:
-            # 如果 reward = 0 (停滞期)，Q 值会自动按照 (1-alpha) 的比例衰减
-            self.q_values[q] += reward
+            self.q_values[q] = self.q_values[q] / (reward * 10 + 1.5)
         max_q = numpy.max(self.q_values)
         if max_q < 0.1:
             self.q_values = self.q_values / max_q * 10

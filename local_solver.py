@@ -14,7 +14,8 @@ class localSolver():
 
         # Fixed the strings to target `self.H` since the `h` and `cnot` methods live there
         self.actions = [(self.H.h, i) for i in range(self.qNum)] + \
-                       [(self.H.cnot, i, j) for i in range(self.qNum) for j in range(self.qNum) if i != j]
+                       [(self.H.cnot, i, j) for i in range(self.qNum) for j in range(self.qNum) if i != j] + \
+                       [(self.H.s,i) for i in range(self.qNum)]
 
         self.best_weight = self.H.weight()
         self.best_seq = []
@@ -105,9 +106,9 @@ def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx
 
 if __name__ == "__main__":
     import time
-    qNum = 3
-    H = HoppingHam(qNum-1, qNum)
-    mapper = JordanWignerMapper()
+    qNum = 4
+    H = HoppingHam(4,4)
+    mapper = TernaryTreeMapper()
     mapped_op = mapper.map(H)
 
     x_mat = numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32)
@@ -116,13 +117,14 @@ if __name__ == "__main__":
     ps = PauliSymplectic(x_mat,
                          z_mat,
                          len(mapped_op.paulis[0]))
+    print(len(mapped_op.paulis[0]))
 
 
-    SEARCH_DEPTH = 5
+    SEARCH_DEPTH = 6
 
     s = time.perf_counter()
     solver = localSolver(ps, searchDepth=SEARCH_DEPTH)
-    solver()
+    solver(show=True)
     e = time.perf_counter()
     print('time: ', e-s)
 
