@@ -15,7 +15,7 @@ class localSolver():
         # Fixed the strings to target `self.H` since the `h` and `cnot` methods live there
         self.actions = [(self.H.h, i) for i in range(self.qNum)] + \
                        [(self.H.cnot, i, j) for i in range(self.qNum) for j in range(self.qNum) if i != j] + \
-                       [(self.H.s,i) for i in range(self.qNum)]
+                       [(self.H.s, i) for i in range(self.qNum)]
 
         self.best_weight = self.H.weight()
         self.best_seq = []
@@ -76,33 +76,6 @@ class localSolver():
                     func(*args)
 
         return self.best_weight, self.best_seq
-
-# --- TOP LEVEL WORKER FUNCTION (Must be top level for multiprocessing) ---
-def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx):
-    """
-    This function is sent to an independent CPU core.
-    It applies ONE specific first move, then runs the DFS tree from there.
-    """
-    # 1. Reconstruct the local state for this specific CPU core
-    ps = PauliSymplectic(initial_Xrep, initial_Zrep, qNum)
-    solver = localSolver(ps, searchDepth=search_depth)
-
-    # 2. Identify the assigned first action
-    first_act = solver.actions[first_action_idx]
-    func, *args = first_act
-
-    # 3. Apply the first action
-    func(*args)
-
-    # 4. Search the rest of the tree (starting from depth - 1)
-    solver._search(search_depth - 1, [first_act])
-
-    # Return the best sequence and weight found in this specific branch
-    # We must format the sequence into strings here because function pointers
-    # cannot be sent back safely through the multiprocessing pipeline.
-    string_seq = [f"{f.__name__}({','.join(map(str, a))})" for f, *a in solver.best_seq]
-
-    return solver.best_weight, string_seq
 
 if __name__ == "__main__":
     import time

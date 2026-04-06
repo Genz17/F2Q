@@ -1,11 +1,9 @@
 from qiskit_nature.second_q.operators import FermionicOp
-from qiskit_nature.second_q.mappers import JordanWignerMapper,BravyiKitaevMapper
+from qiskit_nature.second_q.mappers import JordanWignerMapper,BravyiKitaevMapper, ParityMapper
 from qiskit.quantum_info import PauliList
 from HamiltonianGen import *
 from local_solver import localSolver
 from HamiltonianGen import PauliSymplectic
-from cmab import NonStationaryCombinatorialBandit
-from ucb import ExactUCBBandit
 from ttMapper import TernaryTreeMapper
 from qiskit_nature.units import DistanceUnit
 from qiskit_nature.second_q.drivers import PySCFDriver
@@ -21,6 +19,7 @@ class globalSolver():
 
     def __call__(self, iterNum = 50000, strategy = 'random'):
         wList = []
+        failed_vectors = set()
         if strategy == 'random':
             for i in range(iterNum):
                 random_ints = numpy.random.choice(self.qNum, self.localSize, replace=False)
@@ -40,9 +39,18 @@ class globalSolver():
                 qubit_weights = active_matrix.sum(axis=0) # 得到长度为 qNum 的一维数组
                 p = qubit_weights + 1e-3
                 p = p / p.sum()
-                random_ints = numpy.random.choice(self.qNum, self.localSize, replace=False, p=p)
+                for _ in range(2000):
+                    random_ints = numpy.random.choice(self.qNum, self.localSize, replace=False, p=p)
+                    key = tuple(sorted(int(x) for x in random_ints))
+                    if key not in failed_vectors:
+                        break
+                    else:
+                        print("repeated sampling")
+                else:
+                    print("No new subset found after many retries.")
+                    break
                 old_weight = self.H.weight()
-                print(i, old_weight)
+                print(random_ints, i, old_weight)
                 wList.append(old_weight)
 
                 ps = PauliSymplectic(self.H.Xrep[:,random_ints], self.H.Zrep[:, random_ints],self.localSize) # take space
@@ -51,53 +59,10 @@ class globalSolver():
                 self.H.Xrep[:,random_ints] = ls.H.Xrep
                 self.H.Zrep[:,random_ints] = ls.H.Zrep
                 new_weight = self.H.weight()
-        if strategy == 'cmab':
-            bandit = NonStationaryCombinatorialBandit(
-                num_qubits=self.qNum,
-                num_select=self.localSize,
-                epsilon=0.25,   # 25% 概率全局瞎逛防止卡死，75% 概率追着热点打
-                alpha=0.9,      # 50% 的遗忘率，因为局部优化完一次，这块区域的潜力瞬间归零
-                initial_q=100.0  # 假设初期一次优化能降 30，鼓励算法先把所有 qubit 摸一遍
-            )
-
-            for i in range(iterNum):
-                #bandit.epsilon = min(i * 0.001, 0.5)
-                random_ints = bandit.select_block()
-                old_weight = self.H.weight()
-                print(i, old_weight)
-                wList.append(old_weight)
-
-                ps = PauliSymplectic(self.H.Xrep[:,random_ints], self.H.Zrep[:, random_ints], self.localSize)
-                ls = localSolver(ps, searchDepth=self.sd)
-                ls(show=False)
-                self.H.Xrep[:,random_ints] = ls.H.Xrep
-                self.H.Zrep[:,random_ints] = ls.H.Zrep
-
-                new_weight = self.H.weight()
-
-                reward = old_weight - new_weight
-                bandit.update(random_ints, reward)
-
-        if strategy == 'ucb':
-            bandit = ExactUCBBandit(self.qNum, self.localSize, alpha=0.8, c=10.0)
-            for i in range(iterNum):
-                arm_idx, random_ints = bandit.select_block()
-
-                old_weight = self.H.weight()
-                print(i, old_weight)
-
-                ps = PauliSymplectic(self.H.Xrep[:,random_ints], self.H.Zrep[:, random_ints], self.localSize)
-                ls = localSolver(ps, searchDepth=self.sd)
-                ls(show=False)
-
-                self.H.Xrep[:,random_ints] = ls.H.Xrep
-                self.H.Zrep[:,random_ints] = ls.H.Zrep
-
-                new_weight = self.H.weight()
-                reward = old_weight - new_weight
-
-                bandit.update(arm_idx, reward)
-        return new_weight
+                if new_weight >= old_weight:
+                    failed_vectors.add(key)
+                else:
+                    failed_vectors.clear()
             
 if __name__ == "__main__":
 
@@ -107,8 +72,17 @@ if __name__ == "__main__":
     bk = []
     tt = []
     op = []
+    molecules = (
+    ("LiH", "H 0 0 0; Li 0 0 1.6"),
+    ("H_2O", "O 0.0 0.0 0.0; H 0.757 0.586 0.0; H -0.757 0.586 0.0"),
+    ("CH_4", "6 2.5369 0 0; 1 3.0739 0.31 0; 1 2 -0.31 0; 1 2.2269 0.5369 0; 1 2.8469 -0.5369 0; "),
+    ("O_2", "O 0.616 0.0 0.0; O -0.616 0.0 0.0"),
+    ("NaF", "11 3 0 0; 9 2 0 0;"),
+    ("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
+    )
 
-    for j in range(6,7):
+    for j in range(6,8):
+        print("==================")
         numpy.random.seed(42)
         #H = HoppingHam(j-1, j)
         H = HubbardHam2D(j,j)
@@ -127,6 +101,16 @@ if __name__ == "__main__":
         #unit=DistanceUnit.ANGSTROM,
         #).run().hamiltonian.second_q_op()
 
+        #print("now we are at ", m)
+        #mol = m[1]
+        #H = PySCFDriver(
+        #atom = mol,
+        #basis="sto3g",
+        #charge=0,
+        #spin=0,
+        #unit=DistanceUnit.ANGSTROM,
+        #).run().hamiltonian.second_q_op()
+
 
         mapper = JordanWignerMapper()
         mapped_op = mapper.map(H)
@@ -136,8 +120,6 @@ if __name__ == "__main__":
                              z_mat,
                              len(mapped_op.paulis[0]))
         jw.append(ps.weight()/len(mapped_op.paulis))
-
-
 
         mapper = BravyiKitaevMapper()
         mapped_op = mapper.map(H)
@@ -187,16 +169,3 @@ if __name__ == "__main__":
         print('bk=',bk)
         print('tt=',tt)
         print('op=',op)
-
-
-
-        #x_mat = numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32)
-        #z_mat = numpy.fliplr(PauliList(mapped_op.paulis).z).astype(numpy.int32)
-        #ps = PauliSymplectic(x_mat,
-        #                     z_mat,
-        #                     len(mapped_op.paulis[0]))
-
-        #SEARCH_DEPTH = 4
-        #gs = globalSolver(ps, 3, SEARCH_DEPTH)
-        #w_s = gs(strategy = 'random')
-        #print(w_b,w_s)
