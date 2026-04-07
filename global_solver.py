@@ -2,11 +2,12 @@ from qiskit_nature.second_q.operators import FermionicOp
 from qiskit_nature.second_q.mappers import JordanWignerMapper,BravyiKitaevMapper, ParityMapper
 from qiskit.quantum_info import PauliList
 from HamiltonianGen import *
-from local_solver import localSolver
+from local_solver import localSolver, worker_task
 from HamiltonianGen import PauliSymplectic
 from ttMapper import TernaryTreeMapper
 from qiskit_nature.units import DistanceUnit
 from qiskit_nature.second_q.drivers import PySCFDriver
+from joblib import Parallel, delayed
 import numpy
 import copy
 
@@ -17,7 +18,7 @@ class globalSolver():
         self.localSize = localSize
         self.sd = SEARCH_DEPTH
 
-    def __call__(self, iterNum = 50000, strategy = 'random'):
+    def __call__(self, iterNum = 1000, strategy = 'random'):
         wList = []
         failed_vectors = set()
         if strategy == 'random':
@@ -45,21 +46,33 @@ class globalSolver():
                     if key not in failed_vectors:
                         break
                     else:
-                        print("repeated sampling")
+                        #print("repeated sampling")
+                        pass
                 else:
                     print("No new subset found after many retries.")
                     break
+
                 old_weight = self.H.weight()
                 print(random_ints, i, old_weight)
                 wList.append(old_weight)
 
-                ps = PauliSymplectic(self.H.Xrep[:,random_ints], self.H.Zrep[:, random_ints],self.localSize) # take space
+                ps = PauliSymplectic(self.H.Xrep[:,random_ints].copy(), self.H.Zrep[:, random_ints].copy(),self.localSize) # take space
+                old_sub_weight = ps.weight()
+
+                num_branches = 2*self.localSize+ (self.localSize* (self.localSize- 1))
+                results = Parallel(n_jobs=-1)(
+                    delayed(worker_task)(ps.Xrep.copy(), ps.Zrep.copy(), self.localSize, self.sd, idx)
+                    for idx in range(num_branches)
+                )
+                new_sub_weight, best_seq_str, best_seq = min(results, key=lambda x: x[0])
                 ls = localSolver(ps, searchDepth=self.sd)
-                ls(show=False)
-                self.H.Xrep[:,random_ints] = ls.H.Xrep
-                self.H.Zrep[:,random_ints] = ls.H.Zrep
-                new_weight = self.H.weight()
-                if new_weight >= old_weight:
+                if new_sub_weight < old_sub_weight:
+                    for act_name, args in best_seq:
+                        func = getattr(ls.H, act_name)
+                        func(*args)
+                    self.H.Xrep[:,random_ints] = ls.H.Xrep
+                    self.H.Zrep[:,random_ints] = ls.H.Zrep
+                if new_sub_weight >= old_sub_weight:
                     failed_vectors.add(key)
                 else:
                     failed_vectors.clear()
@@ -73,19 +86,20 @@ if __name__ == "__main__":
     tt = []
     op = []
     molecules = (
-    ("LiH", "H 0 0 0; Li 0 0 1.6"),
-    ("H_2O", "O 0.0 0.0 0.0; H 0.757 0.586 0.0; H -0.757 0.586 0.0"),
-    ("CH_4", "6 2.5369 0 0; 1 3.0739 0.31 0; 1 2 -0.31 0; 1 2.2269 0.5369 0; 1 2.8469 -0.5369 0; "),
-    ("O_2", "O 0.616 0.0 0.0; O -0.616 0.0 0.0"),
-    ("NaF", "11 3 0 0; 9 2 0 0;"),
-    ("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
+            ("H_2", "H 0 0 0; H 0 0 0.735"),
+            #("LiH", "H 0 0 0; Li 0 0 1.6"),
+            #("H_2O", "O 0.0 0.0 0.0; H 0.757 0.586 0.0; H -0.757 0.586 0.0"),
+            #("CH_4", "6 2.5369 0 0; 1 3.0739 0.31 0; 1 2 -0.31 0; 1 2.2269 0.5369 0; 1 2.8469 -0.5369 0; "),
+            #("O_2", "O 0.616 0.0 0.0; O -0.616 0.0 0.0"),
+            #("NaF", "11 3 0 0; 9 2 0 0;"),
+            #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(6,8):
+    for m in molecules:
         print("==================")
         numpy.random.seed(42)
         #H = HoppingHam(j-1, j)
-        H = HubbardHam2D(j,j)
+        #H = HubbardHam2D(j,j)
         
         #astr = ''
         #astrList = ['H %.5f 0 0;' % (0.735 * i) for i in range(j)]
@@ -101,15 +115,15 @@ if __name__ == "__main__":
         #unit=DistanceUnit.ANGSTROM,
         #).run().hamiltonian.second_q_op()
 
-        #print("now we are at ", m)
-        #mol = m[1]
-        #H = PySCFDriver(
-        #atom = mol,
-        #basis="sto3g",
-        #charge=0,
-        #spin=0,
-        #unit=DistanceUnit.ANGSTROM,
-        #).run().hamiltonian.second_q_op()
+        print("now we are at ", m)
+        mol = m[1]
+        H = PySCFDriver(
+        atom = mol,
+        basis="sto3g",
+        charge=0,
+        spin=0,
+        unit=DistanceUnit.ANGSTROM,
+        ).run().hamiltonian.second_q_op()
 
 
         mapper = JordanWignerMapper()
@@ -141,7 +155,7 @@ if __name__ == "__main__":
         tt.append(ps.weight()/len(mapped_op.paulis))
 
         l = numpy.asarray([jw[-1], bk[-1], tt[-1]])
-        print(l)
+        print(l, l * len(mapped_op.paulis))
         if numpy.argmin(l) == 0:
             mapper = JordanWignerMapper()
         elif numpy.argmin(l) == 1:
@@ -161,8 +175,8 @@ if __name__ == "__main__":
                              z_mat,
                              len(mapped_op.paulis[0]))
 
-        SEARCH_DEPTH = 3
-        gs = globalSolver(ps, 6, SEARCH_DEPTH)
+        SEARCH_DEPTH = 6
+        gs = globalSolver(ps, 4, SEARCH_DEPTH)
         w_b = gs(strategy = 'rmax')
         op.append(w_b/len(mapped_op.paulis))
         print('jw=',jw)

@@ -2,6 +2,8 @@ from qiskit_nature.second_q.operators import FermionicOp
 from qiskit_nature.second_q.mappers import JordanWignerMapper
 from qiskit.quantum_info import PauliList
 from HamiltonianGen import *
+from qiskit_nature.units import DistanceUnit
+from qiskit_nature.second_q.drivers import PySCFDriver
 from joblib import Parallel, delayed
 import numpy
 import copy
@@ -55,6 +57,13 @@ class localSolver():
         args_str = ",".join(map(str, args))
         return f"{func_name}({args_str})"
 
+    def _apply(self, seq):
+        for act in seq:
+            func, *args = act
+            func(*args)
+
+        return
+
     def __call__(self, show = False):
         if show:
             print(f"Starting Search... Initial weight: {self.best_weight}")
@@ -77,45 +86,75 @@ class localSolver():
 
         return self.best_weight, self.best_seq
 
+def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx):
+    """
+    This function is sent to an independent CPU core.
+    It applies ONE specific first move, then runs the DFS tree from there.
+    """
+    # 1. Reconstruct the local state for this specific CPU core
+    ps = PauliSymplectic(initial_Xrep.copy(), initial_Zrep.copy(), qNum)
+    solver = localSolver(ps, searchDepth=search_depth)
+
+    # 2. Identify the assigned first action
+    first_act = solver.actions[first_action_idx]
+    func, *args = first_act
+
+    # 3. Apply the first action
+    func(*args)
+
+    # 4. Search the rest of the tree (starting from depth - 1)
+    solver._search(search_depth - 1, [first_act])
+
+    # Return the best sequence and weight found in this specific branch
+    # We must format the sequence into strings here because function pointers
+    # cannot be sent back safely through the multiprocessing pipeline.
+    string_seq = [f"{f.__name__}({','.join(map(str, a))})" for f, *a in solver.best_seq]
+    action_instructions = []
+    for func, *args in solver.best_seq:
+        action_instructions.append((func.__name__, args))
+
+    return solver.best_weight, string_seq, action_instructions
+
+
 if __name__ == "__main__":
     import time
-    qNum = 4
-    H = HoppingHam(4,4)
+    j = 2
+    qNum = 3
+
+    H = HoppingHam(2,3)
+
     mapper = TernaryTreeMapper()
     mapped_op = mapper.map(H)
 
     x_mat = numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32)
     z_mat = numpy.fliplr(PauliList(mapped_op.paulis).z).astype(numpy.int32)
 
-    ps = PauliSymplectic(x_mat,
-                         z_mat,
+    ps = PauliSymplectic(x_mat.copy(),
+                         z_mat.copy(),
                          len(mapped_op.paulis[0]))
     print(len(mapped_op.paulis[0]))
 
 
-    SEARCH_DEPTH = 6
+    SEARCH_DEPTH = 4
 
     s = time.perf_counter()
     solver = localSolver(ps, searchDepth=SEARCH_DEPTH)
     solver(show=True)
     e = time.perf_counter()
     print('time: ', e-s)
+    print(solver.best_seq)
 
 
 
-    #num_branches = qNum + (qNum * (qNum - 1))
-    #s = time.perf_counter()
-    #results = Parallel(n_jobs=-1)(
-    #    delayed(worker_task)(x_mat.copy(), z_mat.copy(), qNum, SEARCH_DEPTH, idx)
-    #    for idx in range(num_branches)
-    #)
-    #e = time.perf_counter()
-    #print('time: ', e-s)
+    num_branches = 2*qNum + (qNum * (qNum - 1))
+    s = time.perf_counter()
+    results = Parallel(n_jobs=-1)(
+        delayed(worker_task)(x_mat.copy(), z_mat.copy(), qNum, SEARCH_DEPTH, idx)
+        for idx in range(num_branches)
+    )
+    e = time.perf_counter()
+    print('time: ', e-s)
 
-    #best_overall_weight, best_overall_seq = min(results, key=lambda x: x[0])
-
-
-    #print(f"\nSearch Complete. Best weight found: {best_overall_weight}")
-    #print("Optimal Sequence:")
-    #for step in best_overall_seq:
-    #    print(f" -> {step}")
+    best_overall_weight, best_seq_str, best_seq = min(results, key=lambda x: x[0])
+    print(f"\nSearch Complete. Best weight found: {best_overall_weight}")
+    print(best_seq_str)
