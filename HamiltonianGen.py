@@ -37,7 +37,7 @@ def HoppingHam(r,N):
     Ham = FermionicOp({}, num_spin_orbitals=N)
     for i in range(N):
         for j in range(N):
-            if abs(i-j) < r and i != j:
+            if abs(i-j) <= r and i != j:
                 Ham = Ham + FermionicOp({"+_%d -_%d" % (i, j): 1}, num_spin_orbitals=N)
     return Ham
 
