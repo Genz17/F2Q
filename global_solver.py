@@ -118,8 +118,10 @@ class globalSolver():
             candidate_pool_size = 10000
 
             for i in range(iterNum):
-                old_weight = self.H.weight()
-                print(i, old_weight)
+                if i % 10 == 0:
+                    old_weight = self.H.weight()
+                    print(old_weight, end='\t')
+                print(i)
                 wList.append(old_weight)
 
                 # --- A. 智能海选阶段 ---
@@ -129,7 +131,6 @@ class globalSolver():
                 # 极速提取这 200 个组合的特征矩阵
                 X_infer = numpy.array([extract_features(self.H, c) for c in candidates])
                 
-                # 模型推断：预测每个组合能降多少 Weight
                 predicted_drops = model.predict(X_infer)
                 
                 # 选出预测下降量最大的那个组合
@@ -176,7 +177,7 @@ if __name__ == "__main__":
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(1,20):
+    for j in range(12,20):
     #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
@@ -258,19 +259,13 @@ if __name__ == "__main__":
                              z_mat.copy(),
                              len(mapped_op.paulis[0]))
 
-        SEARCH_DEPTH = 3
-        gs = globalSolver(ps, 9, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'rmax', iterNum = 500)
+        SEARCH_DEPTH = 4
+        gs = globalSolver(ps, 8, SEARCH_DEPTH)
+        wrmax = gs(strategy = 'rmax', iterNum = 100)
 
-        ps = PauliSymplectic(x_mat.copy(),
-                             z_mat.copy(),
-                             len(mapped_op.paulis[0]))
 
-        SEARCH_DEPTH = 3
-        gs = globalSolver(ps, 9, SEARCH_DEPTH)
-        wrand = gs(strategy = 'random', iterNum = 500)
-
-        op.append(min(wrand[-1],wrmax[-1])/len(mapped_op.paulis))
+        op.append(wrmax[-1]/len(mapped_op.paulis))
+        print("now we are at ", j)
         print('jw =',jw)
         print('bk =',bk)
         print('tt =',tt)
