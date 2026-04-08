@@ -177,26 +177,26 @@ if __name__ == "__main__":
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(12,20):
+    for j in range(4,7):
     #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        H = HoppingHam(j, 20)
+        #H = HoppingHam(j-1, j)
         #H = HubbardHam2D(j,j)
         
-        #astr = ''
-        #astrList = ['H %.5f 0 0;' % (0.735 * i) for i in range(j)]
-        #for a in astrList:
-        #    astr+=a
-        #print(astr)
+        astr = ''
+        astrList = ['H %.5f 0 0;' % (0.735 * i) for i in range(j)]
+        for a in astrList:
+            astr+=a
+        print(astr)
 
-        #H = PySCFDriver(
-        #atom=astr,
-        #basis="sto3g",
-        #charge=0,
-        #spin=j%2,
-        #unit=DistanceUnit.ANGSTROM,
-        #).run().hamiltonian.second_q_op()
+        H = PySCFDriver(
+        atom=astr,
+        basis="sto3g",
+        charge=0,
+        spin=j%2,
+        unit=DistanceUnit.ANGSTROM,
+        ).run().hamiltonian.second_q_op()
 
         #print("now we are at ", m)
         #mol = m[1]
@@ -261,7 +261,7 @@ if __name__ == "__main__":
 
         SEARCH_DEPTH = 4
         gs = globalSolver(ps, 8, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'rmax', iterNum = 100)
+        wrmax = gs(strategy = 'rmax', iterNum = 120)
 
 
         op.append(wrmax[-1]/len(mapped_op.paulis))
