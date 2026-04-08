@@ -118,10 +118,9 @@ def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx
 
 if __name__ == "__main__":
     import time
-    j = 2
-    qNum = 3
+    qNum = 8
 
-    H = HoppingHam(2,3)
+    H = HoppingHam(3,8)
 
     mapper = TernaryTreeMapper()
     mapped_op = mapper.map(H)
@@ -137,12 +136,12 @@ if __name__ == "__main__":
 
     SEARCH_DEPTH = 4
 
-    s = time.perf_counter()
-    solver = localSolver(ps, searchDepth=SEARCH_DEPTH)
-    solver(show=True)
-    e = time.perf_counter()
-    print('time: ', e-s)
-    print(solver.best_seq)
+    #s = time.perf_counter()
+    #solver = localSolver(ps, searchDepth=SEARCH_DEPTH)
+    #solver(show=True)
+    #e = time.perf_counter()
+    #print('time: ', e-s)
+    #print(solver.best_seq)
 
 
 

@@ -2,7 +2,7 @@ from qiskit_nature.second_q.operators import FermionicOp
 from qiskit_nature.second_q.mappers import JordanWignerMapper,BravyiKitaevMapper, ParityMapper
 from qiskit.quantum_info import PauliList
 from HamiltonianGen import *
-from local_solver import localSolver, worker_task
+from local_solver_new import localSolver, worker_task
 from HamiltonianGen import PauliSymplectic
 from ttMapper import TernaryTreeMapper
 from qiskit_nature.units import DistanceUnit
@@ -81,7 +81,7 @@ class globalSolver():
                     break
 
                 old_weight = self.H.weight()
-                print(random_ints, i, old_weight)
+                print(random_ints, i, old_weight,end='\t')
                 wList.append(old_weight)
 
                 ps = PauliSymplectic(self.H.Xrep[:,random_ints].copy(), self.H.Zrep[:, random_ints].copy(),self.localSize) # take space
@@ -93,6 +93,7 @@ class globalSolver():
                     for idx in range(num_branches)
                 )
                 new_sub_weight, best_seq_str, best_seq = min(results, key=lambda x: x[0])
+                print(best_seq_str)
                 ls = localSolver(ps, searchDepth=self.sd)
                 if new_sub_weight < old_sub_weight:
                     for act_name, args in best_seq:
@@ -177,12 +178,12 @@ if __name__ == "__main__":
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(4,11):
+    for j in range(9,10):
     #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        #H = HoppingHam(j-1, j)
-        H = HubbardHam2D(j,j)
+        H = HoppingHam(j-1, j)
+        #H = HubbardHam2D(j,j)
         
         #astr = ''
         #astrList = ['H %.5f 0 0;' % (0.735 * i) for i in range(j)]
@@ -259,8 +260,8 @@ if __name__ == "__main__":
                              z_mat.copy(),
                              len(mapped_op.paulis[0]))
 
-        SEARCH_DEPTH = 4
-        gs = globalSolver(ps, 8, SEARCH_DEPTH)
+        SEARCH_DEPTH = 5
+        gs = globalSolver(ps, 6, SEARCH_DEPTH)
         wrmax = gs(strategy = 'rmax', iterNum = 2000)
 
 
