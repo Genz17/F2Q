@@ -178,11 +178,11 @@ if __name__ == "__main__":
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(7,8):
+    for j in range(14, 15):
     #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        H = HoppingHam(j, 10)
+        H = HoppingHam(j, 15)
         #H = HubbardHam2D(j,j)
         #H = H2D(j,j)
         
@@ -251,8 +251,8 @@ if __name__ == "__main__":
             print(numpy.argmin(l))
             mapper = None
 
-        #mapper = JordanWignerMapper()
-        mapper = BravyiKitaevMapper()
+        mapper = JordanWignerMapper()
+        #mapper = BravyiKitaevMapper()
         #mapper = TernaryTreeMapper()
         mapped_op = mapper.map(H)
         print(len(mapped_op.paulis))
@@ -263,9 +263,9 @@ if __name__ == "__main__":
                              z_mat.copy(),
                              len(mapped_op.paulis[0]))
 
-        SEARCH_DEPTH = 7
+        SEARCH_DEPTH = 4
         gs = globalSolver(ps, 4, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'rmax', iterNum = 5000, nTerm = len(mapped_op.paulis))
+        wrmax = gs(strategy = 'rmax', iterNum = 3000, nTerm = len(mapped_op.paulis))
 
 
         op.append(wrmax[-1]/len(mapped_op.paulis))
