@@ -35,14 +35,14 @@ class globalSolver():
         self.localSize = localSize
         self.sd = SEARCH_DEPTH
 
-    def __call__(self, iterNum = 15000, strategy = 'random'):
+    def __call__(self, iterNum = 15000, strategy = 'random', nTerm = 1):
         wList = []
         failed_vectors = set()
         if strategy == 'random':
             for i in range(iterNum):
                 random_ints = numpy.random.choice(self.qNum, self.localSize, replace=False)
                 old_weight = self.H.weight()
-                print(random_ints, i, old_weight)
+                print(random_ints, i, old_weight, old_weight/nTerm)
                 wList.append(old_weight)
 
                 ps = PauliSymplectic(self.H.Xrep[:,random_ints].copy(), self.H.Zrep[:, random_ints].copy(), self.localSize) 
@@ -81,7 +81,7 @@ class globalSolver():
                     break
 
                 old_weight = self.H.weight()
-                print(random_ints, i, old_weight,end='\t')
+                print(random_ints, i, old_weight, old_weight/nTerm,end='\t')
                 wList.append(old_weight)
 
                 ps = PauliSymplectic(self.H.Xrep[:,random_ints].copy(), self.H.Zrep[:, random_ints].copy(),self.localSize) # take space
@@ -178,12 +178,13 @@ if __name__ == "__main__":
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(9,10):
+    for j in range(7,8):
     #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        H = HoppingHam(j-1, j)
+        H = HoppingHam(j, 10)
         #H = HubbardHam2D(j,j)
+        #H = H2D(j,j)
         
         #astr = ''
         #astrList = ['H %.5f 0 0;' % (0.735 * i) for i in range(j)]
@@ -250,7 +251,9 @@ if __name__ == "__main__":
             print(numpy.argmin(l))
             mapper = None
 
-        mapper = JordanWignerMapper()
+        #mapper = JordanWignerMapper()
+        mapper = BravyiKitaevMapper()
+        #mapper = TernaryTreeMapper()
         mapped_op = mapper.map(H)
         print(len(mapped_op.paulis))
         x_mat = numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32)
@@ -260,9 +263,9 @@ if __name__ == "__main__":
                              z_mat.copy(),
                              len(mapped_op.paulis[0]))
 
-        SEARCH_DEPTH = 5
-        gs = globalSolver(ps, 6, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'rmax', iterNum = 2000)
+        SEARCH_DEPTH = 7
+        gs = globalSolver(ps, 4, SEARCH_DEPTH)
+        wrmax = gs(strategy = 'rmax', iterNum = 5000, nTerm = len(mapped_op.paulis))
 
 
         op.append(wrmax[-1]/len(mapped_op.paulis))
