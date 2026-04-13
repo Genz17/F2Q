@@ -10,10 +10,12 @@ from qiskit_nature.second_q.hamiltonians.lattices import (
 import numpy
 
 class PauliSymplectic():
-    def __init__(self, Xrep, Zrep, qNum):
+    def __init__(self, Xrep, Zrep, qNum, coeffs=None):
         self.Xrep = Xrep
         self.Zrep = Zrep
         self.qNum = qNum
+        if type(coeffs) != type(None):
+            self.coeffs = numpy.abs(coeffs)
 
     def cnot(self,i,j):
         # control on i, act on j
@@ -31,6 +33,11 @@ class PauliSymplectic():
     def weight(self):
         self.sumRep = self.Xrep | self.Zrep
         return self.sumRep.sum()
+
+    def qdriftWeight(self):
+        self.sumRep = self.Xrep | self.Zrep
+        temp = self.sumRep.sum(axis=1)
+        return (self.coeffs * temp).sum()
 
 
 def HoppingHam(r,N):
@@ -81,32 +88,33 @@ def HubbardHam2D(Lx, Ly, periodic=False):
     return H
 
 if __name__ == "__main__":
-    #H = HoppingHam(3, 4)
+    H = HoppingHam(1, 4)
     mapper = BravyiKitaevMapper()
-    square_lattice = SquareLattice(
-        rows=2, cols=2, boundary_condition=BoundaryCondition.OPEN
-    )
-    H = FermiHubbardModel(
-        square_lattice.uniform_parameters(
-            uniform_interaction=-1,
-            uniform_onsite_potential=0,
-        ),
-        onsite_interaction=4,
-    ).second_q_op().simplify()
-    print(H)
+    #square_lattice = SquareLattice(
+    #    rows=2, cols=2, boundary_condition=BoundaryCondition.OPEN
+    #)
+    #H = FermiHubbardModel(
+    #    square_lattice.uniform_parameters(
+    #        uniform_interaction=-1,
+    #        uniform_onsite_potential=0,
+    #    ),
+    #    onsite_interaction=4,
+    #).second_q_op().simplify()
     mapped_op = mapper.map(H)
+    print(mapped_op.paulis)
+    print(mapped_op.coeffs)
+
+
     ps1 = PauliSymplectic(numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32),
                          numpy.fliplr(PauliList(mapped_op.paulis).z).astype(numpy.int32),
-                         len(mapped_op.paulis[0]))
+                         len(mapped_op.paulis[0]), mapped_op.coeffs)
+    print(ps1.qdriftWeight())
 
-    H = HubbardHam2D(2,2,periodic = False).simplify()
-    print("===")
-    print(H)
-    mapped_op = mapper.map(H)
-    ps2 = PauliSymplectic(numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32),
-                         numpy.fliplr(PauliList(mapped_op.paulis).z).astype(numpy.int32),
-                         len(mapped_op.paulis[0]))
-    print(ps1.Xrep - ps2.Xrep)
+    #H = HubbardHam2D(2,2,periodic = False).simplify()
+    #mapped_op = mapper.map(H)
+    #ps2 = PauliSymplectic(numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32),
+    #                     numpy.fliplr(PauliList(mapped_op.paulis).z).astype(numpy.int32),
+    #                     len(mapped_op.paulis[0]))
     #mapper = BravyiKitaevMapper()
     #mapper = TernaryTreeMapper()
     #mapped_op = mapper.map(H)

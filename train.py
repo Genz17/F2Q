@@ -10,11 +10,14 @@ print(f"训练集特征维度: {X_train.shape}, 标签维度: {y_train.shape}")
 
 # 2. 定义轻量级 XGBoost 模型
 model = xgb.XGBRegressor(
-    n_estimators=500,       # 50 棵浅层树，保证推理速度
-    max_depth=20,           
+    n_estimators=500,       # Give it room to learn
+    max_depth=20,            # A more balanced depth for 100k rows
     learning_rate=0.1,
     n_jobs=-1
 )
+
+# You will need to pass an eval_set in the .fit() method to use early stopping:
+# model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
 
 # 3. 训练模型 (眨眼间就能完成)
 print("开始训练模型...")

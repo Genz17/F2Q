@@ -1,10 +1,11 @@
 from qiskit_nature.second_q.mappers import BravyiKitaevMapper, JordanWignerMapper
 from qiskit.quantum_info import PauliList
 from HamiltonianGen import HoppingHam, PauliSymplectic, HubbardHam2D
-from local_solver import localSolver # 确保你能导入原有的 localSolver
+from local_solver_new import localSolver, worker_task # 确保你能导入原有的 localSolver
 import numpy as np
 import copy
 import time
+from joblib import Parallel, delayed
 
 def extract_features(H, selected_qubits, active_matrix):
     """提取 6 维轻量级特征"""
@@ -16,11 +17,11 @@ def extract_features(H, selected_qubits, active_matrix):
     current_weight = active_matrix.sum()
     
     return np.array([
-        activities[0], activities[1], activities[2], activities[3], activities[4], activities[5],
+        activities[0], activities[1], activities[2], activities[3],
         strong_couplings, current_weight
     ])
 
-def generate_training_data(qNum=30, localSize=6, searchDepth=3, num_restarts=10, steps_per_run=500):
+def generate_training_data(qNum=30, localSize=4, searchDepth=4, num_restarts=100, steps_per_run=100):
     """
     生成训练数据。
     num_restarts: 重新初始化哈密顿量的次数（多收集前期好降的数据）
@@ -29,11 +30,12 @@ def generate_training_data(qNum=30, localSize=6, searchDepth=3, num_restarts=10,
     X_data = []
     y_data = []
     
-    print(f"开始收集数据... 预计总样本数: {num_restarts * steps_per_run}")
+    print(f"开始收集数据... 预计总样本数: {num_restarts * steps_per_run}", end = '\t')
     start_time = time.perf_counter()
 
     for run in range(num_restarts):
-        rr = np.random.randint(20, qNum-1, 1)[0]
+        print(run, num_restarts)
+        rr = np.random.randint(21, qNum-1, 1)[0]
         H_initial_op = HoppingHam(rr, qNum)
         mapper = JordanWignerMapper()
         mapped_op = mapper.map(H_initial_op)
@@ -47,10 +49,8 @@ def generate_training_data(qNum=30, localSize=6, searchDepth=3, num_restarts=10,
         ps_global = PauliSymplectic(initial_x_mat.copy(), initial_z_mat.copy(), num_paulis)
         
         for step in range(steps_per_run):
+            print(step, steps_per_run, end='\t')
             active_matrix = ps_global.Xrep | ps_global.Zrep
-            qubit_weights = active_matrix.sum(axis=0) # 得到长度为 qNum 的一维数组
-            p = qubit_weights + 1e-3
-            p = p / p.sum()
             random_ints = np.random.choice(qNum, localSize, replace=False)
             
             # 【提取特征 X】 - 必须在操作前提取！
@@ -58,9 +58,20 @@ def generate_training_data(qNum=30, localSize=6, searchDepth=3, num_restarts=10,
             old_w = ps_global.weight()
             
             # 运行局部求解器
+
             ps_local = PauliSymplectic(ps_global.Xrep[:, random_ints], ps_global.Zrep[:, random_ints], localSize)
+
+            num_branches = 2*localSize+ (localSize* (localSize- 1))
+            results = Parallel(n_jobs=-1)(
+                delayed(worker_task)(ps_local.Xrep.copy(), ps_local.Zrep.copy(), localSize, searchDepth, idx)
+                for idx in range(num_branches)
+            )
+            new_sub_weight, best_seq_str, best_seq = min(results, key=lambda x: x[0])
             ls = localSolver(ps_local, searchDepth=searchDepth)
-            ls(show=False)
+
+            for act_name, args in best_seq:
+                func = getattr(ls.H, act_name)
+                func(*args)
             
             # 更新全局状态
             ps_global.Xrep[:, random_ints] = ls.H.Xrep

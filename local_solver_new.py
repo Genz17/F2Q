@@ -9,7 +9,7 @@ import numpy
 import copy
 
 class localSolver():
-    def __init__(self, H_symp, searchDepth):
+    def __init__(self, H_symp, searchDepth, method='weight'):
         self.H = H_symp
         self.qNum = self.H.qNum
         self.searchDepth = searchDepth
@@ -21,8 +21,12 @@ class localSolver():
 
         # Assign a strict ordering index to each action for commutation pruning
         self.action_idx = {act: idx for idx, act in enumerate(self.actions)}
+        self.method = method
 
-        self.best_weight = self.H.weight()
+        if self.method == 'weight':
+            self.best_weight = self.H.weight()
+        else:
+            self.best_weight = self.H.qdriftWeight()
         self.best_seq = []
 
     def _commutes(self, act1, act2):
@@ -47,39 +51,74 @@ class localSolver():
         return False
 
     def _search(self, depth, current_seq):
-        current_weight = self.H.weight()
-        if current_weight < self.best_weight:
-            self.best_weight = current_weight
-            self.best_seq = current_seq.copy()
+        if self.method == 'weight':
+            current_weight = self.H.weight()
+            if current_weight < self.best_weight:
+                self.best_weight = current_weight
+                self.best_seq = current_seq.copy()
 
-        if depth == 0:
-            return
+            if depth == 0:
+                return
 
-        for act in self.actions:
-            if current_seq:
-                prev_act = current_seq[-1]
-                
-                # Pruning 1: All operations are self-inverse in boolean symplectic rep.
-                # Applying the exact same move twice does nothing.
-                if act == prev_act:
-                    continue
-                
-                # Pruning 2: Lexicographical Ordering for Commutation.
-                # If two moves commute, only allow them in one specific index order.
-                if self._commutes(prev_act, act) and self.action_idx[act] < self.action_idx[prev_act]:
-                    continue
+            for act in self.actions:
+                if current_seq:
+                    prev_act = current_seq[-1]
+                    
+                    # Pruning 1: All operations are self-inverse in boolean symplectic rep.
+                    # Applying the exact same move twice does nothing.
+                    if act == prev_act:
+                        continue
+                    
+                    # Pruning 2: Lexicographical Ordering for Commutation.
+                    # If two moves commute, only allow them in one specific index order.
+                    if self._commutes(prev_act, act) and self.action_idx[act] < self.action_idx[prev_act]:
+                        continue
 
-            # Apply
-            func, args = act
-            func(*args)
-            current_seq.append(act)
+                # Apply
+                func, args = act
+                func(*args)
+                current_seq.append(act)
 
-            # Recurse
-            self._search(depth - 1, current_seq)
+                # Recurse
+                self._search(depth - 1, current_seq)
 
-            # Backtrack: Neatly undo by reapplying the self-inverse action
-            current_seq.pop()
-            func(*args)
+                # Backtrack: Neatly undo by reapplying the self-inverse action
+                current_seq.pop()
+                func(*args)
+        else:
+            current_weight = self.H.qdriftWeight()
+            if current_weight < self.best_weight:
+                self.best_weight = current_weight
+                self.best_seq = current_seq.copy()
+
+            if depth == 0:
+                return
+
+            for act in self.actions:
+                if current_seq:
+                    prev_act = current_seq[-1]
+                    
+                    # Pruning 1: All operations are self-inverse in boolean symplectic rep.
+                    # Applying the exact same move twice does nothing.
+                    if act == prev_act:
+                        continue
+                    
+                    # Pruning 2: Lexicographical Ordering for Commutation.
+                    # If two moves commute, only allow them in one specific index order.
+                    if self._commutes(prev_act, act) and self.action_idx[act] < self.action_idx[prev_act]:
+                        continue
+
+                # Apply
+                func, args = act
+                func(*args)
+                current_seq.append(act)
+
+                # Recurse
+                self._search(depth - 1, current_seq)
+
+                # Backtrack: Neatly undo by reapplying the self-inverse action
+                current_seq.pop()
+                func(*args)
 
     def __call__(self, show=False):
         if show:
@@ -101,14 +140,14 @@ class localSolver():
 
         return self.best_weight, self.best_seq
 
-def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx):
+def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx, method='weight', coeffs=None):
     """
     This function is sent to an independent CPU core.
     It applies ONE specific first move, then runs the DFS tree from there.
     """
     # 1. Reconstruct the local state for this specific CPU core
-    ps = PauliSymplectic(initial_Xrep.copy(), initial_Zrep.copy(), qNum)
-    solver = localSolver(ps, searchDepth=search_depth)
+    ps = PauliSymplectic(initial_Xrep.copy(), initial_Zrep.copy(), qNum, coeffs)
+    solver = localSolver(ps, searchDepth=search_depth, method=method)
 
     # 2. Identify the assigned first action
     first_act = solver.actions[first_action_idx]

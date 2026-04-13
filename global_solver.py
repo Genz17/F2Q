@@ -11,6 +11,7 @@ from joblib import Parallel, delayed
 from itertools import combinations
 import numpy
 import copy
+import pickle
 import xgboost as xgb
 
 def extract_features(H, selected_qubits):
@@ -170,19 +171,19 @@ if __name__ == "__main__":
     op = []
     molecules = (
             #("H_2", "H 0 0 0; H 0 0 0.735"),
-            #("LiH", "H 0 0 0; Li 0 0 1.6"),
+            ("LiH", "H 0 0 0; Li 0 0 1.6"),
             #("H_2O", "O 0.0 0.0 0.0; H 0.757 0.586 0.0; H -0.757 0.586 0.0"),
             #("CH_4", "6 2.5369 0 0; 1 3.0739 0.31 0; 1 2 -0.31 0; 1 2.2269 0.5369 0; 1 2.8469 -0.5369 0; "),
             #("O_2", "O 0.616 0.0 0.0; O -0.616 0.0 0.0"),
-            ("NaF", "11 3 0 0; 9 2 0 0;"),
-            ("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
+            #("NaF", "11 3 0 0; 9 2 0 0;"),
+            #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    #for j in range(1,2):
-    for m in molecules:
+    for j in range(1,2):
+        #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        #H = HoppingHam(j, 15)
+        H = HoppingHam(j, 15)
         #H = HubbardHam2D(j,j)
         #H = H2D(j,j)
         
@@ -200,15 +201,20 @@ if __name__ == "__main__":
         #unit=DistanceUnit.ANGSTROM,
         #).run().hamiltonian.second_q_op()
 
-        print("now we are at ", m)
-        mol = m[1]
-        H = PySCFDriver(
-        atom = mol,
-        basis="sto3g",
-        charge=0,
-        spin=0,
-        unit=DistanceUnit.ANGSTROM,
-        ).run().hamiltonian.second_q_op()
+        #print("now we are at ", m)
+        #mol = m[1]
+        #H = PySCFDriver(
+        #atom = mol,
+        #basis="6-31g",
+        #charge=0,
+        #spin=0,
+        #unit=DistanceUnit.ANGSTROM,
+        #).run().hamiltonian.second_q_op()
+
+        #with open("%s_6-31g.pkl" % m[0], "wb") as f:
+        #    pickle.dump(H, f)
+        #with open("./mols/%s_sto3g.pkl" % m[0], "rb") as f:
+        #    H = pickle.load(f)
 
 
         mapper = JordanWignerMapper()
@@ -264,12 +270,12 @@ if __name__ == "__main__":
                              len(mapped_op.paulis[0]))
 
         SEARCH_DEPTH = 4
-        gs = globalSolver(ps, 6, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'rmax', iterNum = 10000, nTerm = len(mapped_op.paulis))
+        gs = globalSolver(ps, 4, SEARCH_DEPTH)
+        wrmax = gs(strategy = 'rmax', iterNum = 2000, nTerm = len(mapped_op.paulis))
 
 
         op.append(wrmax[-1]/len(mapped_op.paulis))
-        print("now we are at ", j)
+        print("now we are at ", m)
         print('jw =',jw)
         print('bk =',bk)
         print('tt =',tt)
