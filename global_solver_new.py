@@ -110,10 +110,20 @@ class globalSolver():
                 else:
                     failed_vectors.clear()
         if strategy == 'qdrift':
+            active_matrix = self.H.Xrep | self.H.Zrep
+            p_q = numpy.dot(self.H.coeffs, active_matrix)
+            old_weight = self.H.qdriftWeight()
             for i in range(iterNum):
-                random_ints = numpy.random.choice(self.qNum, self.localSize, replace=False)
-                old_weight = self.H.qdriftWeight()
-                print(random_ints, i, old_weight, old_weight,end='\t')
+                p = (p_q + 1e-3) / (p_q + 1e-3).sum()
+                for _ in range(2000):
+                    random_ints = numpy.random.choice(self.qNum, self.localSize, replace=False, p=p)
+                    key = tuple(sorted(int(x) for x in random_ints))
+                    if key not in failed_vectors:
+                        break
+                else:
+                    print("No new subset found after many retries.")
+                    break
+                print(random_ints, i, old_weight,end='\t')
                 wList.append(old_weight)
 
                 ps = PauliSymplectic(self.H.Xrep[:,random_ints].copy(), self.H.Zrep[:, random_ints].copy(),self.localSize, self.H.coeffs) # take space
@@ -133,8 +143,16 @@ class globalSolver():
                         func(*args)
                     self.H.Xrep[:,random_ints] = ls.H.Xrep
                     self.H.Zrep[:,random_ints] = ls.H.Zrep
+
+                    local_active = ls.H.Xrep | ls.H.Zrep
+                    p_q[random_ints] = numpy.dot(ls.H.coeffs, local_active)
+                    old_weight = old_weight - (old_sub_weight - new_sub_weight)
+
+                if new_sub_weight >= old_sub_weight:
+                    failed_vectors.add(key)
+                else:
+                    failed_vectors.clear()
         if strategy == 'xgboost':
-            # 1. 加载我们在上一步训练好的模型 (仅在调用此策略时加载)
             print("Loading XGBoost surrogate model...")
             model = xgb.XGBRegressor()
             try:
@@ -194,19 +212,19 @@ if __name__ == "__main__":
     op = []
     molecules = (
             ("H_2", "H 0 0 0; H 0 0 0.735"),
-            ("LiH", "H 0 0 0; Li 0 0 1.6"),
-            ("H_2O", "O 0.0 0.0 0.0; H 0.757 0.586 0.0; H -0.757 0.586 0.0"),
-            ("CH_4", "6 2.5369 0 0; 1 3.0739 0.31 0; 1 2 -0.31 0; 1 2.2269 0.5369 0; 1 2.8469 -0.5369 0; "),
-            ("O_2", "O 0.616 0.0 0.0; O -0.616 0.0 0.0"),
-            ("NaF", "11 3 0 0; 9 2 0 0;"),
+            #("LiH", "H 0 0 0; Li 0 0 1.6"),
+            #("H_2O", "O 0.0 0.0 0.0; H 0.757 0.586 0.0; H -0.757 0.586 0.0"),
+            #("CH_4", "6 2.5369 0 0; 1 3.0739 0.31 0; 1 2 -0.31 0; 1 2.2269 0.5369 0; 1 2.8469 -0.5369 0; "),
+            #("O_2", "O 0.616 0.0 0.0; O -0.616 0.0 0.0"),
+            #("NaF", "11 3 0 0; 9 2 0 0;"),
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    for j in range(1,20):
-    #for m in molecules:
+    #for j in range(1,20):
+    for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        H = HoppingHam(j, 20)
+        #H = HoppingHam(j, 20)
         #H = HubbardHam2D(j,j)
         #H = H2D(j,j)
         
@@ -237,14 +255,13 @@ if __name__ == "__main__":
         #with open("%d_%d_hopping.pkl" % (j-1,j), "wb") as f:
         #    pickle.dump(H, f)
         #print("%s" % m[0])
-        #with open("./mols/%s_6-31g.pkl" % m[0], "rb") as f:
-        #    H = pickle.load(f)
+        with open("./mols/%s_sto3g.pkl" % m[0], "rb") as f:
+            H = pickle.load(f)
 
 
         mapper = JordanWignerMapper()
         mapped_op = mapper.map(H)
         print(mapped_op)
-        print(mapped_op.paulis[0], len(mapped_op.paulis[0]))
         x_mat = numpy.fliplr(PauliList(mapped_op.paulis).x).astype(numpy.int32)
         z_mat = numpy.fliplr(PauliList(mapped_op.paulis).z).astype(numpy.int32)
         ps = PauliSymplectic(x_mat,
@@ -287,9 +304,9 @@ if __name__ == "__main__":
                              z_mat.copy(),
                              len(mapped_op.paulis[0]), mapped_op.coeffs)
 
-        SEARCH_DEPTH = 4
-        gs = globalSolver(ps, 6, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'qdrift', iterNum = 500, nTerm = len(mapped_op.paulis))
+        SEARCH_DEPTH = 6
+        gs = globalSolver(ps, 4, SEARCH_DEPTH)
+        wrmax = gs(strategy = 'qdrift', iterNum = 2000, nTerm = len(mapped_op.paulis))
         op.append(wrmax[-1])
 
         print('jw', jw)
