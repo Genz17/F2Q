@@ -14,7 +14,6 @@ class localSolver():
         self.qNum = self.H.qNum
         self.searchDepth = searchDepth
 
-        # Fixed the strings to target `self.H` since the `h` and `cnot` methods live there
         self.actions = [(self.H.h, i) for i in range(self.qNum)] + \
                        [(self.H.cnot, i, j) for i in range(self.qNum) for j in range(self.qNum) if i != j] + \
                        [(self.H.s, i) for i in range(self.qNum)]
@@ -23,32 +22,24 @@ class localSolver():
         self.best_seq = []
 
     def _search(self, depth, current_seq):
-        # Check if the current state is the best we've seen
         current_weight = self.H.weight()
         if current_weight < self.best_weight:
             self.best_weight = current_weight
             self.best_seq = current_seq.copy()
 
-        # Base case for DFS
         if depth == 0:
             return
 
         for act in self.actions:
-            # Optimization: H and CNOT are self-inverse.
-            # Doing the same move twice in a row does nothing, so we skip it to prune the tree.
             if current_seq and current_seq[-1] == act:
                 continue
 
-            # Apply action
             func, *args = act
             func(*args)
             current_seq.append(act)
 
-            # Recurse deeper
             self._search(depth - 1, current_seq)
 
-            # Backtrack: pop the action and apply it again to reverse the state
-            # (Requires no slow memory deepcopies!)
             current_seq.pop()
             func(*args)
     def _format_action(self, act):
@@ -91,23 +82,16 @@ def worker_task(initial_Xrep, initial_Zrep, qNum, search_depth, first_action_idx
     This function is sent to an independent CPU core.
     It applies ONE specific first move, then runs the DFS tree from there.
     """
-    # 1. Reconstruct the local state for this specific CPU core
     ps = PauliSymplectic(initial_Xrep.copy(), initial_Zrep.copy(), qNum)
     solver = localSolver(ps, searchDepth=search_depth)
 
-    # 2. Identify the assigned first action
     first_act = solver.actions[first_action_idx]
     func, *args = first_act
 
-    # 3. Apply the first action
     func(*args)
 
-    # 4. Search the rest of the tree (starting from depth - 1)
     solver._search(search_depth - 1, [first_act])
 
-    # Return the best sequence and weight found in this specific branch
-    # We must format the sequence into strings here because function pointers
-    # cannot be sent back safely through the multiprocessing pipeline.
     string_seq = [f"{f.__name__}({','.join(map(str, a))})" for f, *a in solver.best_seq]
     action_instructions = []
     for func, *args in solver.best_seq:

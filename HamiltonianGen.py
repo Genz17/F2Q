@@ -54,15 +54,12 @@ def H2D(Lx, Ly):
 
     for i in range(N):
         for j in range(N):
-            # Map 1D indices to 2D (x, y) coordinates
             xi, yi = i % Lx, i // Lx
             xj, yj = j % Lx, j // Lx
 
-            # Calculate the distance in x and y directions
             dx = abs(xi - xj)
             dy = abs(yi - yj)
 
-            # Nearest neighbors have a distance of 1 in one axis, and 0 in the other
             if (dx == 1 and dy == 0) or (dx == 0 and dy == 1):
                 Ham = Ham + FermionicOp({"+_%d -_%d" % (i, j): 1}, num_spin_orbitals=N)
 

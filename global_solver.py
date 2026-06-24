@@ -17,7 +17,6 @@ import xgboost as xgb
 def extract_features(H, selected_qubits):
     active_matrix = (H.Xrep | H.Zrep).astype(numpy.int32)
     activities = active_matrix[:, selected_qubits].sum(axis=0)
-    # 必须排序，消除顺序影响
     activities = numpy.sort(activities)[::-1]
 
     row_sums = active_matrix[:, selected_qubits].sum(axis=1)
@@ -66,7 +65,7 @@ class globalSolver():
         if strategy == 'rmax':
             for i in range(iterNum):
                 active_matrix = self.H.Xrep | self.H.Zrep
-                qubit_weights = active_matrix.sum(axis=0) # 得到长度为 qNum 的一维数组
+                qubit_weights = active_matrix.sum(axis=0) 
                 p = qubit_weights + 1e-3
                 p = p / p.sum()
                 for _ in range(2000):
@@ -107,7 +106,6 @@ class globalSolver():
                 else:
                     failed_vectors.clear()
         if strategy == 'xgboost':
-            # 1. 加载我们在上一步训练好的模型 (仅在调用此策略时加载)
             print("Loading XGBoost surrogate model...")
             model = xgb.XGBRegressor()
             try:
@@ -116,7 +114,6 @@ class globalSolver():
                 print(f"Error loading model: {e}. Please ensure 'light_surrogate.json' exists.")
                 return 
             
-            # 海选池的大小。200 是一个很好的平衡点，推断只需零点几毫秒
             candidate_pool_size = 10000
 
             for i in range(iterNum):
@@ -126,21 +123,16 @@ class globalSolver():
                 print(i)
                 wList.append(old_weight)
 
-                # --- A. 智能海选阶段 ---
-                # 随机生成 200 个不同的 4-qubit 组合
                 candidates = [numpy.random.choice(self.qNum, self.localSize, replace=False) for _ in range(candidate_pool_size)]
                 
-                # 极速提取这 200 个组合的特征矩阵
                 X_infer = numpy.array([extract_features(self.H, c) for c in candidates])
                 
                 predicted_drops = model.predict(X_infer)
                 
-                # 选出预测下降量最大的那个组合
                 best_idx = numpy.argmax(predicted_drops)
                 random_ints = candidates[best_idx]
                 # -----------------------
 
-                # --- B. 精确执行阶段 (复用你写好的高效并行逻辑) ---
                 ps = PauliSymplectic(self.H.Xrep[:,random_ints].copy(), self.H.Zrep[:, random_ints].copy(), self.localSize) 
                 old_sub_weight = ps.weight()
 
