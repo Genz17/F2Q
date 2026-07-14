@@ -6,4 +6,4 @@ __pycache__
 *.swp
 *.log
 *.err
-*.pkl
+.DS_Store

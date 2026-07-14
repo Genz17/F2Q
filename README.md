@@ -4,7 +4,7 @@ Optimizing fermion-to-qubit mappings by randomized subsystem descent. An arXiv p
 
 <center>
 
-<img src="./data/schematic.png" alt="Schematic" width="40%">
+<img src="./data/schematic.png" alt="Schematic" width="70%">
 
 </center>
 

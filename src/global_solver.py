@@ -246,7 +246,7 @@ if __name__ == "__main__":
         #with open("%d_%d_hopping.pkl" % (j-1,j), "wb") as f:
         #    pickle.dump(H, f)
         #print("%s" % m[0])
-        with open("./mols/%s_sto3g.pkl" % m[0], "rb") as f:
+        with open("./../data/mols/%s_sto3g.pkl" % m[0], "rb") as f:
             H = pickle.load(f)
 
 
