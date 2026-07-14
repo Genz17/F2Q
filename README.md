@@ -10,3 +10,5 @@ Optimizing fermion-to-qubit mappings by randomized subsystem descent. An arXiv p
 
 This is a joint work by [Gengzhi Yang](https://genz17.github.io/), [Di Wu](https://woody2357.github.io/), [Haizhao Yang](https://haizhaoyang.github.io/), [Xiaodi Wu](https://www.cs.umd.edu/~xwu/) and
 [Ji Liu](https://programinquantum.com/).
+
+To use the code, simply run `python -u global_solver.py`, where the Hamiltonian, local solver size should be specified within the python file for now.

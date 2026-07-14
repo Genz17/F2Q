@@ -211,11 +211,11 @@ if __name__ == "__main__":
             #("CO_2", "8 3.732 0.5 0; 8 2 -0.5 0; 6 2.866 0 0;"),
     )
 
-    #for j in range(1,20):
-    for m in molecules:
+    for j in range(1,20):
+    #for m in molecules:
         print("==================")
         numpy.random.seed(1234)
-        #H = HoppingHam(j, 20)
+        H = HoppingHam(j, 20)
         #H = HubbardHam2D(j,j)
         #H = H2D(j,j)
         
@@ -246,8 +246,8 @@ if __name__ == "__main__":
         #with open("%d_%d_hopping.pkl" % (j-1,j), "wb") as f:
         #    pickle.dump(H, f)
         #print("%s" % m[0])
-        with open("./../data/mols/%s_sto3g.pkl" % m[0], "rb") as f:
-            H = pickle.load(f)
+        #with open("./../data/mols/%s_sto3g.pkl" % m[0], "rb") as f:
+        #    H = pickle.load(f)
 
 
         mapper = JordanWignerMapper()
@@ -295,9 +295,10 @@ if __name__ == "__main__":
                              z_mat.copy(),
                              len(mapped_op.paulis[0]), mapped_op.coeffs)
 
-        SEARCH_DEPTH = 6
-        gs = globalSolver(ps, 4, SEARCH_DEPTH)
-        wrmax = gs(strategy = 'qdrift', iterNum = 2000, nTerm = len(mapped_op.paulis))
+        SEARCH_DEPTH = 4
+        gs = globalSolver(ps, 2, SEARCH_DEPTH)
+        #wrmax = gs(strategy = 'qdrift', iterNum = 2000, nTerm = len(mapped_op.paulis))
+        wrmax = gs(strategy = 'rmax', iterNum = 2000, nTerm = len(mapped_op.paulis))
         op.append(wrmax[-1])
 
         print('jw', jw)
