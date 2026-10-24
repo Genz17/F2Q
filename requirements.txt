@@ -1,0 +1,5 @@
+numpy>=2.0,<3
+qiskit>=2.2,<3
+qiskit-nature>=0.7,<0.9
+xgboost>=3.0
+scikit-learn>=1.5

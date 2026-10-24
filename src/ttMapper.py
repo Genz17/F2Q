@@ -1,18 +1,11 @@
-from __future__ import annotations
-
 from functools import lru_cache
-from typing import Dict, Tuple
 
 from qiskit.quantum_info import Pauli
-from qiskit_nature.second_q.mappers.fermionic_mapper import FermionicMapper
+from qiskit_nature.second_q.mappers import JordanWignerMapper
 
 
-def _walk_string(
-    i: int,
-    mapping: Dict[int, Tuple[str, int]],
-    nqubits: int,
-    nstrings: int,
-) -> str:
+def _walk_string(i, mapping, nqubits, nstrings):
+
     string = ["I"] * nqubits
     while i in mapping:
         op, i = mapping[i]
@@ -20,20 +13,15 @@ def _walk_string(
     return "".join(string)
 
 
-class TernaryTreeMapper(FermionicMapper):
+class TernaryTreeMapper(JordanWignerMapper):
 
     @classmethod
-    def majorana_table(cls, register_length: int) -> list[str]:
+    def majorana_table(cls, register_length):
         nqubits = register_length
         nstrings = 2 * nqubits + 1
 
-        mapping: Dict[int, Tuple[str, int]] = {}
-
-        free_slots: list[Tuple[int, str]] = [
-            (nstrings, "Z"),
-            (nstrings, "Y"),
-            (nstrings, "X"),
-        ]
+        mapping = {}
+        free_slots = [(nstrings, "Z"), (nstrings, "Y"), (nstrings, "X")]
 
         for node in range(nstrings + 1, 3 * nqubits + 1):
             parent, branch = free_slots.pop(0)
@@ -51,9 +39,6 @@ class TernaryTreeMapper(FermionicMapper):
 
     @classmethod
     @lru_cache(maxsize=32)
-    def pauli_table(cls, register_length: int) -> list[tuple[Pauli, Pauli]]:
+    def pauli_table(cls, register_length):
         majoranas = cls.majorana_table(register_length)
-        return [
-            (Pauli(majoranas[2 * i]), Pauli(majoranas[2 * i + 1]))
-            for i in range(register_length)
-        ]
+        return [(Pauli(majoranas[2 * i]), Pauli(majoranas[2 * i + 1])) for i in range(register_length)]
